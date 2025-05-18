@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣早期療育資訊地圖</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <!-- Leaflet.locate CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+    
+    <!-- Leaflet.search CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-search@3.0.2/dist/leaflet-search.min.css" />
+    
+    <style>
+        #map {
+            height: 100vh;
+            width: 70%;
+            float: left;
+        }
+        #sidebar {
+            height: 100vh;
+            width: 30%;
+            float: right;
+            padding: 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        #data-input-container {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+        }
+        .button-container {
+            margin-top: 10px;
+            text-align: right;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .year-toggle {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .year-toggle button {
+            margin: 0 5px;
+        }
+        .active-year {
+            background-color: #2196F3;
+        }
+        .marker-cluster-small {
+            background-color: rgba(181, 226, 140, 0.6);
+        }
+        .marker-cluster-small div {
+            background-color: rgba(110, 204, 57, 0.6);
+        }
+        .marker-cluster-medium {
+            background-color: rgba(241, 211, 87, 0.6);
+        }
+        .marker-cluster-medium div {
+            background-color: rgba(240, 194, 12, 0.6);
+        }
+        .marker-cluster-large {
+            background-color: rgba(253, 156, 115, 0.6);
+        }
+        .marker-cluster-large div {
+            background-color: rgba(241, 128, 23, 0.6);
+        }
+        .marker-cluster {
+            background-clip: padding-box;
+            border-radius: 20px;
+        }
+        .marker-cluster div {
+            width: 30px;
+            height: 30px;
+            margin-left: 5px;
+            margin-top: 5px;
+            text-align: center;
+            border-radius: 15px;
+            font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+        }
+        .marker-cluster span {
+            line-height: 30px;
+        }
+        .leaflet-popup-content {
+            min-width: 200px;
+        }
+        #error-log {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #ffeeee;
+            border: 1px solid #ffcccc;
+            border-radius: 5px;
+            display: none;
+        }
+        #server-instructions {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e6f7ff;
+            border: 1px solid #b3e0ff;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="sidebar">
+        <h2>台灣早期療育資訊地圖</h2>
+        <div class="year-toggle">
+            <button id="btn-112" class="active-year">112年</button>
+            <button id="btn-113">113年</button>
+        </div>
+        <div>
+            <h3>說明</h3>
+            <p>本地圖顯示台灣各區域早期療育資訊，包含目標場數、完成場數、評估數及確診數等數據。</p>
+            <p>點擊標記可查看詳細資訊。可使用右上角搜尋功能尋找特定區域。</p>
+        </div>
+        <div>
+            <h3>數據統計</h3>
+            <div id="stats"></div>
+        </div>
+        <div id="error-log"></div>
+        <div id="server-instructions">
+            <h3>遇到數據加載問題？</h3>
+            <p>如果您是直接從文件系統打開此頁面，可能會遇到CORS錯誤而無法加載JSON數據。請使用以下方法之一運行本地服務器：</p>
+            <ul>
+                <li>使用Python: <code>python -m http.server</code></li>
+                <li>使用Node.js: <code>npx serve</code></li>
+            </ul>
+            <p>然後訪問 <a href="http://localhost:8000">http://localhost:8000</a> 或服務器提供的URL。</p>
+        </div>
+        <div id="data-input-container">
+            <h3>匯入數據</h3>
+            <p>將TW.txt原始數據粘貼到下方文本框，然後點擊"處理數據"按鈕：</p>
+            <textarea id="raw-data-input" placeholder="請將TW.txt原始數據粘貼到此處..."></textarea>
+            <div class="button-container">
+                <button id="process-btn">處理數據</button>
+            </div>
+            <div id="process-result" style="margin-top: 10px; color: green;"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <!-- Leaflet.markercluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    
+    <!-- Leaflet.locate JS -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+    
+    <!-- Leaflet.search JS -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-search@3.0.2/dist/leaflet-search.min.js"></script>
+    
+    <!-- 處理數據腳本 -->
+    <script src="./processData.js"></script>
+
+    <script>
+        // 初始化地圖
+        var map = L.map('map', {
+            center: [23.5, 121.0], // 台灣中心
+            zoom: 8,
+            minZoom: 7,
+            maxZoom: 18
+        });
+        
+        // 添加底圖
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // 添加定位控制
+        L.control.locate({
+            position: 'topright',
+            strings: {
+                title: "顯示我的位置"
+            },
+            locateOptions: {
+                enableHighAccuracy: true
+            }
+        }).addTo(map);
+        
+        // 初始化標記群組
+        var centerMarkers = L.markerClusterGroup();
+        var healthMarkers = L.markerClusterGroup();
+        
+        // 當前年度
+        var currentYear = '112';
+        
+        // 顯示錯誤日誌
+        function showError(message) {
+            const errorLogElement = document.getElementById('error-log');
+            errorLogElement.style.display = 'block';
+            errorLogElement.innerHTML = `<h3>錯誤信息</h3><p>${message}</p>`;
+            console.error(message);
+        }
+        
+        // 從JSON文件加載數據
+        async function loadData() {
+            try {
+                console.log('開始加載數據...');
+                
+                // 檢測是否從file://協議打開頁面
+                if (window.location.protocol === 'file:') {
+                    console.warn('從文件系統直接打開頁面可能導致CORS問題，建議使用本地服務器。');
+                }
+                
+                const response = await fetch('./data.json');
+                if (!response.ok) {
+                    throw new Error(`無法加載數據：${response.status} ${response.statusText}`);
+                }
+                const data = await response.json();
+                console.log('數據加載成功', data);
+                
+                // 檢查數據結構
+                if (!data || !data['112'] || !data['113']) {
+                    console.warn('數據結構不完整，可能缺少112年或113年的數據');
+                }
+                
+                const total112 = (data['112'].center?.length || 0) + (data['112'].health?.length || 0);
+                const total113 = (data['113'].center?.length || 0) + (data['113'].health?.length || 0);
+                console.log(`數據統計: 112年共${total112}條，113年共${total113}條`);
+                
+                return data;
+            } catch (error) {
+                console.error('加載數據出錯:', error);
+                // 顯示錯誤訊息在頁面上
+                showError(`數據加載錯誤: ${error.message}。如果是CORS錯誤，請參考右側的服務器說明。`);
+                document.getElementById('stats').innerHTML = `<p style="color: red;">數據加載錯誤: ${error.message}</p>`;
+                // 返回空數據結構
+                return {
+                    '112': { center: [], health: [] },
+                    '113': { center: [], health: [] }
+                };
+            }
+        }
+        
+        // 更新標記和統計信息
+        function updateMarkers(data) {
+            try {
+                // 清除現有標記
+                centerMarkers.clearLayers();
+                healthMarkers.clearLayers();
+                
+                // 獲取當前年度數據
+                const yearData = data[currentYear] || { center: [], health: [] };
+                
+                // 處理中心數據
+                if (yearData.center && yearData.center.length > 0) {
+                    yearData.center.forEach(item => {
+                        const marker = L.marker([item.lat, item.lng]);
+                        marker.bindPopup(`
+                            <h3>${item.city} ${item.district}</h3>
+                            <p><strong>類型:</strong> ${item.type}</p>
+                            <p><strong>機構:</strong> ${item.org}</p>
+                            <p><strong>目標場數:</strong> ${item.target}</p>
+                            <p><strong>完成場數:</strong> ${item.complete}</p>
+                            <p><strong>評估數:</strong> ${item.eval}</p>
+                            <p><strong>確診數:</strong> ${item.confirmed}</p>
+                        `);
+                        centerMarkers.addLayer(marker);
+                    });
+                } else {
+                    console.warn(`${currentYear}年的中心數據為空`);
+                }
+                
+                // 處理衛生局數據
+                if (yearData.health && yearData.health.length > 0) {
+                    yearData.health.forEach(item => {
+                        const marker = L.marker([item.lat, item.lng]);
+                        marker.bindPopup(`
+                            <h3>${item.city} ${item.district}</h3>
+                            <p><strong>類型:</strong> ${item.type}</p>
+                            <p><strong>機構:</strong> ${item.org}</p>
+                            <p><strong>目標場數:</strong> ${item.target}</p>
+                            <p><strong>完成場數:</strong> ${item.complete}</p>
+                            <p><strong>評估數:</strong> ${item.eval}</p>
+                            <p><strong>確診數:</strong> ${item.confirmed}</p>
+                        `);
+                        healthMarkers.addLayer(marker);
+                    });
+                } else {
+                    console.warn(`${currentYear}年的衛生局數據為空`);
+                }
+                
+                // 添加標記群組到地圖
+                map.addLayer(centerMarkers);
+                map.addLayer(healthMarkers);
+                
+                // 更新統計信息
+                updateStats(yearData);
+                
+                // 添加搜索控制
+                addSearchControl(yearData);
+            } catch (error) {
+                console.error('更新標記時出錯:', error);
+                showError(`更新標記時出錯: ${error.message}`);
+            }
+        }
+        
+        // 更新統計信息
+        function updateStats(yearData) {
+            try {
+                const centerStats = calculateStats(yearData.center || []);
+                const healthStats = calculateStats(yearData.health || []);
+                
+                const totalStats = {
+                    count: centerStats.count + healthStats.count,
+                    target: centerStats.target + healthStats.target,
+                    complete: centerStats.complete + healthStats.complete,
+                    eval: centerStats.eval + healthStats.eval,
+                    confirmed: centerStats.confirmed + healthStats.confirmed
+                };
+                
+                document.getElementById('stats').innerHTML = `
+                    <p><strong>資料點總數:</strong> ${totalStats.count}</p>
+                    <p><strong>總目標場數:</strong> ${totalStats.target}</p>
+                    <p><strong>總完成場數:</strong> ${totalStats.complete}</p>
+                    <p><strong>總評估數:</strong> ${totalStats.eval}</p>
+                    <p><strong>總確診數:</strong> ${totalStats.confirmed}</p>
+                    <hr>
+                    <p><strong>聯評中心/早療中心:</strong> ${centerStats.count} 個</p>
+                    <p><strong>衛生局:</strong> ${healthStats.count} 個</p>
+                `;
+            } catch (error) {
+                console.error('更新統計信息時出錯:', error);
+                showError(`更新統計信息時出錯: ${error.message}`);
+            }
+        }
+        
+        // 計算統計數據
+        function calculateStats(dataArray) {
+            const stats = {
+                count: dataArray.length,
+                target: 0,
+                complete: 0,
+                eval: 0,
+                confirmed: 0
+            };
+            
+            dataArray.forEach(item => {
+                stats.target += item.target || 0;
+                stats.complete += item.complete || 0;
+                stats.eval += item.eval || 0;
+                stats.confirmed += item.confirmed || 0;
+            });
+            
+            return stats;
+        }
+        
+        // 添加搜索控制
+        function addSearchControl(yearData) {
+            try {
+                // 如果已存在，先移除
+                if (map.searchControl) {
+                    map.removeControl(map.searchControl);
+                }
+                
+                // 合併數據以供搜索
+                const allItems = [...(yearData.center || []), ...(yearData.health || [])];
+                
+                if (allItems.length === 0) {
+                    console.warn('沒有可搜索的數據');
+                    return;
+                }
+                
+                // 創建搜索控制
+                map.searchControl = new L.Control.Search({
+                    position: 'topright',
+                    layer: L.layerGroup(allItems.map(item => 
+                        L.marker([item.lat, item.lng])
+                    )),
+                    propertyName: 'city',
+                    marker: false,
+                    moveToLocation: function(latlng, title, map) {
+                        map.setView(latlng, 12);
+                    },
+                    initial: false,
+                    collapsed: true,
+                    textPlaceholder: '搜尋縣市...',
+                    textErr: '找不到位置'
+                });
+                
+                map.addControl(map.searchControl);
+            } catch (error) {
+                console.error('添加搜索控制時出錯:', error);
+                showError(`添加搜索控制時出錯: ${error.message}`);
+            }
+        }
+        
+        // 初始化應用
+        async function initApp() {
+            try {
+                console.log('應用初始化中...');
+                const data = await loadData();
+                if (!data || (!data['112'] && !data['113'])) {
+                    throw new Error('加載數據為空或格式不正確');
+                }
+                updateMarkers(data);
+                
+                // 年份切換按鈕事件
+                document.getElementById('btn-112').addEventListener('click', function() {
+                    currentYear = '112';
+                    updateMarkers(data);
+                    this.classList.add('active-year');
+                    document.getElementById('btn-113').classList.remove('active-year');
+                });
+                
+                document.getElementById('btn-113').addEventListener('click', function() {
+                    currentYear = '113';
+                    updateMarkers(data);
+                    this.classList.add('active-year');
+                    document.getElementById('btn-112').classList.remove('active-year');
+                });
+                
+                // 數據處理按鈕事件
+                document.getElementById('process-btn').addEventListener('click', function() {
+                    try {
+                        const rawData = document.getElementById('raw-data-input').value;
+                        if (rawData.trim()) {
+                            pasteRawData(rawData);
+                            const processedData = processDataAndGenerate();
+                            document.getElementById('process-result').textContent = '數據處理成功！請複製控制台中的JSON數據';
+                            document.getElementById('process-result').style.color = 'green';
+                            
+                            // 更新標記
+                            updateMarkers(processedData);
+                            
+                            // 隱藏錯誤日誌
+                            document.getElementById('error-log').style.display = 'none';
+                        } else {
+                            document.getElementById('process-result').textContent = '請先粘貼原始數據';
+                            document.getElementById('process-result').style.color = 'red';
+                        }
+                    } catch (error) {
+                        console.error('處理數據時出錯:', error);
+                        document.getElementById('process-result').textContent = '數據處理出錯: ' + error.message;
+                        document.getElementById('process-result').style.color = 'red';
+                        showError(`處理數據時出錯: ${error.message}`);
+                    }
+                });
+            } catch (error) {
+                console.error('初始化應用失敗:', error);
+                showError(`初始化應用失敗: ${error.message}。請檢查控制台以獲取更多信息。`);
+                document.getElementById('stats').innerHTML = `<p style="color: red;">初始化應用失敗: ${error.message}</p>`;
+            }
+        }
+        
+        // 啟動應用
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html> 
