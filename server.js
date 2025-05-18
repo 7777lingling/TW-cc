@@ -12,7 +12,7 @@ const geocoder = require('./geocoder'); // 引入地理編碼模塊
 const PORT = 8088;
 
 // Excel檔案路徑
-const EXCEL_FILE_PATH = '../Excel/20250518.xlsx';
+const EXCEL_FILE_PATH = './Excel/20250518.xlsx';
 
 // MIME類型映射
 const MIME_TYPES = {
@@ -488,7 +488,7 @@ const server = http.createServer((req, res) => {
     
     // 解析URL
     const parsedUrl = url.parse(req.url);
-    let pathname = parsedUrl.pathname;
+    const pathname = parsedUrl.pathname;
     
     // API端點：直接獲取Excel數據
     if (pathname === '/api/excel-data') {

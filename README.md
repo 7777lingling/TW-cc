@@ -27,7 +27,7 @@
 1. 確保您的電腦上已安裝 Node.js
 2. 在命令提示符（或終端）中，切換到專案目錄
 3. 運行 `node server.js`
-4. 在瀏覽器中訪問 `http://localhost:8080`
+4. 在瀏覽器中訪問 `http://localhost:8088`
 
 ### 方法二：使用 Python 簡易服務器
 

@@ -30,21 +30,6 @@
             box-sizing: border-box;
             overflow-y: auto;
         }
-        #data-input-container {
-            margin-top: 20px;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        textarea {
-            width: 100%;
-            height: 200px;
-        }
-        .button-container {
-            margin-top: 10px;
-            text-align: right;
-        }
         button {
             padding: 8px 15px;
             background-color: #4CAF50;
@@ -111,13 +96,7 @@
             border-radius: 5px;
             display: none;
         }
-        #server-instructions {
-            margin-top: 10px;
-            padding: 10px;
-            background-color: #e6f7ff;
-            border: 1px solid #b3e0ff;
-            border-radius: 5px;
-        }
+        
     </style>
 </head>
 <body>
@@ -138,24 +117,6 @@
             <div id="stats"></div>
         </div>
         <div id="error-log"></div>
-        <div id="server-instructions">
-            <h3>遇到數據加載問題？</h3>
-            <p>如果您是直接從文件系統打開此頁面，可能會遇到CORS錯誤而無法加載JSON數據。請使用以下方法之一運行本地服務器：</p>
-            <ul>
-                <li>使用Python: <code>python -m http.server</code></li>
-                <li>使用Node.js: <code>npx serve</code></li>
-            </ul>
-            <p>然後訪問 <a href="http://localhost:8000">http://localhost:8000</a> 或服務器提供的URL。</p>
-        </div>
-        <div id="data-input-container">
-            <h3>匯入數據</h3>
-            <p>將TW.txt原始數據粘貼到下方文本框，然後點擊"處理數據"按鈕：</p>
-            <textarea id="raw-data-input" placeholder="請將TW.txt原始數據粘貼到此處..."></textarea>
-            <div class="button-container">
-                <button id="process-btn">處理數據</button>
-            </div>
-            <div id="process-result" style="margin-top: 10px; color: green;"></div>
-        </div>
     </div>
 
     <!-- Leaflet JS -->
@@ -172,10 +133,14 @@
     <!-- Leaflet.search JS -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet-search@3.0.2/dist/leaflet-search.min.js"></script>
     
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    
     <!-- 處理數據腳本 -->
-    <script src="./processData.js"></script>
+    <script src="./excelProcessor.js"></script>
 
     <script>
+        
         // 初始化地圖
         var map = L.map('map', {
             center: [23.5, 121.0], // 台灣中心
@@ -225,12 +190,38 @@
                     console.warn('從文件系統直接打開頁面可能導致CORS問題，建議使用本地服務器。');
                 }
                 
+                // 首先嘗試從Excel API獲取數據
+                try {
+                    console.log('嘗試從Excel API獲取數據...');
+                    const excelResponse = await fetch('/api/excel-data');
+                    if (excelResponse.ok) {
+                        const excelData = await excelResponse.json();
+                        console.log('成功從Excel讀取數據', excelData);
+                        
+                        // 檢查數據結構
+                        if (!excelData || !excelData['112'] || !excelData['113']) {
+                            console.warn('Excel數據結構不完整，可能缺少112年或113年的數據');
+                        }
+                        
+                        const total112 = (excelData['112'].center?.length || 0) + (excelData['112'].health?.length || 0);
+                        const total113 = (excelData['113'].center?.length || 0) + (excelData['113'].health?.length || 0);
+                        console.log(`Excel數據統計: 112年共${total112}條，113年共${total113}條`);
+                        
+                        return excelData;
+                    } else {
+                        console.warn('Excel API返回錯誤，將嘗試讀取本地JSON數據');
+                    }
+                } catch (excelError) {
+                    console.warn('從Excel API獲取數據失敗，將嘗試讀取本地JSON數據', excelError);
+                }
+                
+                // 如果Excel API獲取失敗，則讀取本地JSON數據
                 const response = await fetch('./data.json');
                 if (!response.ok) {
                     throw new Error(`無法加載數據：${response.status} ${response.statusText}`);
                 }
                 const data = await response.json();
-                console.log('數據加載成功', data);
+                console.log('從本地JSON成功加載數據', data);
                 
                 // 檢查數據結構
                 if (!data || !data['112'] || !data['113']) {
@@ -268,15 +259,60 @@
                 // 處理中心數據
                 if (yearData.center && yearData.center.length > 0) {
                     yearData.center.forEach(item => {
-                        const marker = L.marker([item.lat, item.lng]);
+                        // 從服務器獲取指定地區標誌，如果不存在則使用默認邏輯
+                        const isDesignated = item.isDesignated !== undefined ? item.isDesignated : (item.target > 5);
+                        const areaType = isDesignated ? "指定" : "自選";
+                        
+                        // 根據地區類型設置不同顏色的圖標
+                        const markerIcon = L.icon({
+                            iconUrl: isDesignated ? 
+                                'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png' : 
+                                'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        });
+                        
+                        const marker = L.marker([item.lat, item.lng], { icon: markerIcon });
+                        
+                        // 確保數值類型
+                        const evalValue = typeof item.eval === 'number' ? item.eval : parseInt(item.eval || 0);
+                        const completeValue = typeof item.complete === 'number' ? item.complete : parseInt(item.complete || 0);
+                        const confirmedValue = typeof item.confirmed === 'number' ? item.confirmed : parseInt(item.confirmed || 0);
+                        
+                        // 計算附加指標
+                        const avgEvalPerSession = completeValue > 0 ? (evalValue / completeValue).toFixed(2) : "0";
+                        const diagnosisRate = evalValue > 0 ? ((confirmedValue / evalValue) * 100).toFixed(2) : "0";
+                        const avgDiagnosisPerSession = completeValue > 0 ? (confirmedValue / completeValue).toFixed(2) : "0";
+                        
+                        // 調試輸出
+                        console.log('標記數據:', item);
+                        console.log('數值轉換:', {
+                            evalValue, 
+                            completeValue,
+                            confirmedValue
+                        });
+                        console.log('計算指標:', {
+                            avgEvalPerSession, 
+                            diagnosisRate, 
+                            avgDiagnosisPerSession
+                        });
+                        
                         marker.bindPopup(`
                             <h3>${item.city} ${item.district}</h3>
-                            <p><strong>類型:</strong> ${item.type}</p>
-                            <p><strong>機構:</strong> ${item.org}</p>
+                            <p><strong>縣市別:</strong> ${item.city}</p>
+                            <p><strong>區域别:</strong> ${item.district}</p>
+                            <p><strong>指定、自選地區:</strong> ${areaType}</p>
+                            <p><strong>辦理聯評中心、衛生局:</strong> ${item.type}</p>
                             <p><strong>目標場數:</strong> ${item.target}</p>
                             <p><strong>完成場數:</strong> ${item.complete}</p>
-                            <p><strong>評估數:</strong> ${item.eval}</p>
-                            <p><strong>確診數:</strong> ${item.confirmed}</p>
+                            <p><strong>評估数:</strong> ${item.eval}</p>
+                            <p><strong>確診及疑似遲緩數:</strong> ${item.confirmed}</p>
+                            <p><strong>平均每場評估人數:</strong> ${avgEvalPerSession}</p>
+                            <p><strong>整體確診率:</strong> ${diagnosisRate}%</p>
+                            <p><strong>平均每場次確診數:</strong> ${avgDiagnosisPerSession}</p>
                         `);
                         centerMarkers.addLayer(marker);
                     });
@@ -287,15 +323,60 @@
                 // 處理衛生局數據
                 if (yearData.health && yearData.health.length > 0) {
                     yearData.health.forEach(item => {
-                        const marker = L.marker([item.lat, item.lng]);
+                        // 從服務器獲取指定地區標誌，如果不存在則使用默認邏輯
+                        const isDesignated = item.isDesignated !== undefined ? item.isDesignated : (item.target > 5);
+                        const areaType = isDesignated ? "指定" : "自選";
+                        
+                        // 根據地區類型設置不同顏色的圖標
+                        const markerIcon = L.icon({
+                            iconUrl: isDesignated ? 
+                                'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png' : 
+                                'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        });
+                        
+                        const marker = L.marker([item.lat, item.lng], { icon: markerIcon });
+                        
+                        // 確保數值類型
+                        const evalValue = typeof item.eval === 'number' ? item.eval : parseInt(item.eval || 0);
+                        const completeValue = typeof item.complete === 'number' ? item.complete : parseInt(item.complete || 0);
+                        const confirmedValue = typeof item.confirmed === 'number' ? item.confirmed : parseInt(item.confirmed || 0);
+                        
+                        // 計算附加指標
+                        const avgEvalPerSession = completeValue > 0 ? (evalValue / completeValue).toFixed(2) : "0";
+                        const diagnosisRate = evalValue > 0 ? ((confirmedValue / evalValue) * 100).toFixed(2) : "0";
+                        const avgDiagnosisPerSession = completeValue > 0 ? (confirmedValue / completeValue).toFixed(2) : "0";
+                        
+                        // 調試輸出
+                        console.log('標記數據:', item);
+                        console.log('數值轉換:', {
+                            evalValue, 
+                            completeValue,
+                            confirmedValue
+                        });
+                        console.log('計算指標:', {
+                            avgEvalPerSession, 
+                            diagnosisRate, 
+                            avgDiagnosisPerSession
+                        });
+                        
                         marker.bindPopup(`
                             <h3>${item.city} ${item.district}</h3>
-                            <p><strong>類型:</strong> ${item.type}</p>
-                            <p><strong>機構:</strong> ${item.org}</p>
+                            <p><strong>縣市別:</strong> ${item.city}</p>
+                            <p><strong>區域别:</strong> ${item.district}</p>
+                            <p><strong>指定、自選地區:</strong> ${areaType}</p>
+                            <p><strong>辦理聯評中心、衛生局:</strong> ${item.type}</p>
                             <p><strong>目標場數:</strong> ${item.target}</p>
                             <p><strong>完成場數:</strong> ${item.complete}</p>
-                            <p><strong>評估數:</strong> ${item.eval}</p>
-                            <p><strong>確診數:</strong> ${item.confirmed}</p>
+                            <p><strong>評估数:</strong> ${item.eval}</p>
+                            <p><strong>確診及疑似遲緩數:</strong> ${item.confirmed}</p>
+                            <p><strong>平均每場評估人數:</strong> ${avgEvalPerSession}</p>
+                            <p><strong>整體確診率:</strong> ${diagnosisRate}%</p>
+                            <p><strong>平均每場次確診數:</strong> ${avgDiagnosisPerSession}</p>
                         `);
                         healthMarkers.addLayer(marker);
                     });
@@ -338,9 +419,6 @@
                     <p><strong>總完成場數:</strong> ${totalStats.complete}</p>
                     <p><strong>總評估數:</strong> ${totalStats.eval}</p>
                     <p><strong>總確診數:</strong> ${totalStats.confirmed}</p>
-                    <hr>
-                    <p><strong>聯評中心/早療中心:</strong> ${centerStats.count} 個</p>
-                    <p><strong>衛生局:</strong> ${healthStats.count} 個</p>
                 `;
             } catch (error) {
                 console.error('更新統計信息時出錯:', error);
@@ -387,9 +465,24 @@
                 // 創建搜索控制
                 map.searchControl = new L.Control.Search({
                     position: 'topright',
-                    layer: L.layerGroup(allItems.map(item => 
-                        L.marker([item.lat, item.lng])
-                    )),
+                    layer: L.layerGroup(allItems.map(item => {
+                        // 從服務器獲取指定地區標誌，如果不存在則使用默認邏輯
+                        const isDesignated = item.isDesignated !== undefined ? item.isDesignated : (item.target > 5);
+                        
+                        // 根據地區類型設置不同顏色的圖標
+                        const markerIcon = L.icon({
+                            iconUrl: isDesignated ? 
+                                'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png' : 
+                                'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        });
+                        
+                        return L.marker([item.lat, item.lng], { icon: markerIcon });
+                    })),
                     propertyName: 'city',
                     marker: false,
                     moveToLocation: function(latlng, title, map) {
@@ -433,32 +526,6 @@
                     document.getElementById('btn-112').classList.remove('active-year');
                 });
                 
-                // 數據處理按鈕事件
-                document.getElementById('process-btn').addEventListener('click', function() {
-                    try {
-                        const rawData = document.getElementById('raw-data-input').value;
-                        if (rawData.trim()) {
-                            pasteRawData(rawData);
-                            const processedData = processDataAndGenerate();
-                            document.getElementById('process-result').textContent = '數據處理成功！請複製控制台中的JSON數據';
-                            document.getElementById('process-result').style.color = 'green';
-                            
-                            // 更新標記
-                            updateMarkers(processedData);
-                            
-                            // 隱藏錯誤日誌
-                            document.getElementById('error-log').style.display = 'none';
-                        } else {
-                            document.getElementById('process-result').textContent = '請先粘貼原始數據';
-                            document.getElementById('process-result').style.color = 'red';
-                        }
-                    } catch (error) {
-                        console.error('處理數據時出錯:', error);
-                        document.getElementById('process-result').textContent = '數據處理出錯: ' + error.message;
-                        document.getElementById('process-result').style.color = 'red';
-                        showError(`處理數據時出錯: ${error.message}`);
-                    }
-                });
             } catch (error) {
                 console.error('初始化應用失敗:', error);
                 showError(`初始化應用失敗: ${error.message}。請檢查控制台以獲取更多信息。`);
