@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣早期療育資訊 - 資料檢查</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .filters {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .filters label {
+            margin-right: 10px;
+        }
+        .designated {
+            background-color: #ffeeee;
+        }
+        #summary {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #e6f7ff;
+            border-radius: 5px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: #fff;
+            border-bottom: 1px solid #fff;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+            border: 1px solid #ddd;
+            padding: 20px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>台灣早期療育資訊 - 資料檢查工具</h1>
+        <p>此工具用於檢查早期療育資訊的資料是否完整，特別是指定區域的資料。</p>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="data-112">112年資料</div>
+            <div class="tab" data-tab="data-113">113年資料</div>
+            <div class="tab" data-tab="designated">指定區域</div>
+            <div class="tab" data-tab="missing">可能缺失的資料</div>
+        </div>
+        
+        <div id="summary">
+            <h2>資料摘要</h2>
+            <div id="summary-content">載入中...</div>
+        </div>
+        
+        <div class="filters">
+            <h3>篩選選項</h3>
+            <div>
+                <label>
+                    <input type="checkbox" id="filter-designated" checked> 只顯示指定區域
+                </label>
+                <label>
+                    <input type="checkbox" id="filter-center" checked> 顯示聯評中心/早療中心
+                </label>
+                <label>
+                    <input type="checkbox" id="filter-health" checked> 顯示衛生局
+                </label>
+            </div>
+            <div style="margin-top: 10px;">
+                <label>
+                    縣市篩選: 
+                    <select id="filter-city">
+                        <option value="">所有縣市</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+        
+        <div id="data-112" class="tab-content active">
+            <h2>112年資料</h2>
+            <table id="table-112">
+                <thead>
+                    <tr>
+                        <th>編號</th>
+                        <th>縣市</th>
+                        <th>區域</th>
+                        <th>類型</th>
+                        <th>指定區域</th>
+                        <th>目標場數</th>
+                        <th>完成場數</th>
+                        <th>評估數</th>
+                        <th>確診數</th>
+                        <th>地圖座標</th>
+                    </tr>
+                </thead>
+                <tbody id="data-112-body">
+                    <tr><td colspan="10" class="loading">載入中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="data-113" class="tab-content">
+            <h2>113年資料</h2>
+            <table id="table-113">
+                <thead>
+                    <tr>
+                        <th>編號</th>
+                        <th>縣市</th>
+                        <th>區域</th>
+                        <th>類型</th>
+                        <th>指定區域</th>
+                        <th>目標場數</th>
+                        <th>完成場數</th>
+                        <th>評估數</th>
+                        <th>確診數</th>
+                        <th>地圖座標</th>
+                    </tr>
+                </thead>
+                <tbody id="data-113-body">
+                    <tr><td colspan="10" class="loading">載入中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="designated" class="tab-content">
+            <h2>指定區域一覽</h2>
+            <table id="table-designated">
+                <thead>
+                    <tr>
+                        <th>編號</th>
+                        <th>縣市</th>
+                        <th>區域</th>
+                        <th>年度</th>
+                        <th>類型</th>
+                        <th>目標場數</th>
+                        <th>指定原因</th>
+                    </tr>
+                </thead>
+                <tbody id="designated-body">
+                    <tr><td colspan="7" class="loading">載入中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="missing" class="tab-content">
+            <h2>可能缺失的資料</h2>
+            <p>以下列出根據designatedAreas陣列判斷可能缺失的指定區域資料。</p>
+            <table id="table-missing">
+                <thead>
+                    <tr>
+                        <th>縣市</th>
+                        <th>區域</th>
+                        <th>是否在112年資料中</th>
+                        <th>是否在113年資料中</th>
+                    </tr>
+                </thead>
+                <tbody id="missing-body">
+                    <tr><td colspan="4" class="loading">載入中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            // 切換頁籤功能
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // 移除所有active類
+                    tabs.forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // 添加active類到當前頁籤
+                    this.classList.add('active');
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            // 載入資料
+            let data;
+            try {
+                const response = await fetch('/api/excel-data');
+                if (!response.ok) {
+                    throw new Error(`無法從API獲取數據: ${response.status} ${response.statusText}`);
+                }
+                data = await response.json();
+                console.log('數據載入成功:', data);
+                
+                // 填充數據
+                displayData(data);
+                updateSummary(data);
+                populateCityFilter(data);
+                checkMissingDesignatedAreas(data);
+                
+                // 設置篩選器事件
+                setupFilters();
+            } catch (error) {
+                console.error('載入數據出錯:', error);
+                document.getElementById('summary-content').innerHTML = `
+                    <p class="error">載入數據出錯: ${error.message}</p>
+                    <p>請確保服務器正在運行，並且可以訪問 /api/excel-data 端點。</p>
+                `;
+            }
+        });
+        
+        // 顯示數據
+        function displayData(data) {
+            // 顯示112年數據
+            displayYearData(data['112'], 'data-112-body');
+            
+            // 顯示113年數據
+            displayYearData(data['113'], 'data-113-body');
+            
+            // 顯示所有指定區域
+            displayDesignatedAreas(data);
+        }
+        
+        // 顯示特定年份的數據
+        function displayYearData(yearData, tableBodyId) {
+            const tableBody = document.getElementById(tableBodyId);
+            
+            if (!yearData || (!yearData.center && !yearData.health) || 
+                (yearData.center.length === 0 && yearData.health.length === 0)) {
+                tableBody.innerHTML = '<tr><td colspan="10" class="error">此年度無數據</td></tr>';
+                return;
+            }
+            
+            // 合併中心和衛生局數據
+            const allItems = [
+                ...(yearData.center || []).map(item => ({...item, dataType: 'center'})),
+                ...(yearData.health || []).map(item => ({...item, dataType: 'health'}))
+            ];
+            
+            // 清空表格
+            tableBody.innerHTML = '';
+            
+            // 填充表格
+            allItems.forEach((item, index) => {
+                const row = document.createElement('tr');
+                
+                // 如果是指定區域，添加標記樣式
+                if (item.isDesignated) {
+                    row.classList.add('designated');
+                }
+                
+                // 添加數據類型屬性，用於篩選
+                row.setAttribute('data-type', item.dataType);
+                row.setAttribute('data-city', item.city);
+                row.setAttribute('data-designated', item.isDesignated ? 'true' : 'false');
+                
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${item.city}</td>
+                    <td>${item.district}</td>
+                    <td>${item.type}</td>
+                    <td>${item.isDesignated ? '是' : '否'}</td>
+                    <td>${item.target}</td>
+                    <td>${item.complete}</td>
+                    <td>${item.eval}</td>
+                    <td>${item.confirmed}</td>
+                    <td>[${item.lat.toFixed(4)}, ${item.lng.toFixed(4)}]</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // 顯示指定區域
+        function displayDesignatedAreas(data) {
+            const tableBody = document.getElementById('designated-body');
+            
+            // 收集所有指定區域
+            const designatedAreas = [];
+            
+            // 收集112年指定區域
+            if (data['112']) {
+                if (data['112'].center) {
+                    designatedAreas.push(...data['112'].center
+                        .filter(item => item.isDesignated)
+                        .map(item => ({
+                            ...item,
+                            year: '112',
+                            dataType: 'center'
+                        }))
+                    );
+                }
+                
+                if (data['112'].health) {
+                    designatedAreas.push(...data['112'].health
+                        .filter(item => item.isDesignated)
+                        .map(item => ({
+                            ...item,
+                            year: '112',
+                            dataType: 'health'
+                        }))
+                    );
+                }
+            }
+            
+            // 收集113年指定區域
+            if (data['113']) {
+                if (data['113'].center) {
+                    designatedAreas.push(...data['113'].center
+                        .filter(item => item.isDesignated)
+                        .map(item => ({
+                            ...item,
+                            year: '113',
+                            dataType: 'center'
+                        }))
+                    );
+                }
+                
+                if (data['113'].health) {
+                    designatedAreas.push(...data['113'].health
+                        .filter(item => item.isDesignated)
+                        .map(item => ({
+                            ...item,
+                            year: '113',
+                            dataType: 'health'
+                        }))
+                    );
+                }
+            }
+            
+            // 檢查是否有指定區域
+            if (designatedAreas.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="error">沒有找到任何指定區域</td></tr>';
+                return;
+            }
+            
+            // 清空表格
+            tableBody.innerHTML = '';
+            
+            // 填充表格
+            designatedAreas.forEach((item, index) => {
+                // 判斷指定原因
+                let designationReason = '';
+                if (item.target > 5) {
+                    designationReason = '目標場數 > 5';
+                } else {
+                    designationReason = '特定指定區域清單';
+                }
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${item.city}</td>
+                    <td>${item.district}</td>
+                    <td>${item.year}年</td>
+                    <td>${item.type}</td>
+                    <td>${item.target}</td>
+                    <td>${designationReason}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // 更新數據摘要
+        function updateSummary(data) {
+            const summary = {
+                total112: 0,
+                total113: 0,
+                designated112: 0,
+                designated113: 0,
+                centers112: 0,
+                centers113: 0,
+                health112: 0,
+                health113: 0
+            };
+            
+            // 計算112年數據
+            if (data['112']) {
+                if (data['112'].center) {
+                    summary.centers112 = data['112'].center.length;
+                    summary.designated112 += data['112'].center.filter(item => item.isDesignated).length;
+                    summary.total112 += data['112'].center.length;
+                }
+                
+                if (data['112'].health) {
+                    summary.health112 = data['112'].health.length;
+                    summary.designated112 += data['112'].health.filter(item => item.isDesignated).length;
+                    summary.total112 += data['112'].health.length;
+                }
+            }
+            
+            // 計算113年數據
+            if (data['113']) {
+                if (data['113'].center) {
+                    summary.centers113 = data['113'].center.length;
+                    summary.designated113 += data['113'].center.filter(item => item.isDesignated).length;
+                    summary.total113 += data['113'].center.length;
+                }
+                
+                if (data['113'].health) {
+                    summary.health113 = data['113'].health.length;
+                    summary.designated113 += data['113'].health.filter(item => item.isDesignated).length;
+                    summary.total113 += data['113'].health.length;
+                }
+            }
+            
+            // 更新摘要顯示
+            document.getElementById('summary-content').innerHTML = `
+                <p><strong>112年資料:</strong> 總共 ${summary.total112} 條記錄，
+                其中聯評中心/早療中心 ${summary.centers112} 條，
+                衛生局 ${summary.health112} 條，
+                指定區域 ${summary.designated112} 條。</p>
+                
+                <p><strong>113年資料:</strong> 總共 ${summary.total113} 條記錄，
+                其中聯評中心/早療中心 ${summary.centers113} 條，
+                衛生局 ${summary.health113} 條，
+                指定區域 ${summary.designated113} 條。</p>
+                
+                <p><strong>總計:</strong> ${summary.total112 + summary.total113} 條記錄，
+                指定區域共 ${summary.designated112 + summary.designated113} 條。</p>
+            `;
+        }
+        
+        // 設置篩選器事件
+        function setupFilters() {
+            const filterDesignated = document.getElementById('filter-designated');
+            const filterCenter = document.getElementById('filter-center');
+            const filterHealth = document.getElementById('filter-health');
+            const filterCity = document.getElementById('filter-city');
+            
+            // 篩選事件
+            function applyFilters() {
+                const showDesignated = filterDesignated.checked;
+                const showCenter = filterCenter.checked;
+                const showHealth = filterHealth.checked;
+                const selectedCity = filterCity.value;
+                
+                // 對112年和113年的表格應用篩選
+                ['data-112-body', 'data-113-body'].forEach(tableId => {
+                    const rows = document.getElementById(tableId).querySelectorAll('tr');
+                    
+                    rows.forEach(row => {
+                        if (!row.getAttribute('data-type')) return; // 跳過非數據行
+                        
+                        const isDesignated = row.getAttribute('data-designated') === 'true';
+                        const isCenter = row.getAttribute('data-type') === 'center';
+                        const city = row.getAttribute('data-city');
+                        
+                        let show = true;
+                        
+                        // 應用指定區域篩選
+                        if (showDesignated && !isDesignated) {
+                            show = false;
+                        }
+                        
+                        // 應用類型篩選
+                        if (isCenter && !showCenter) {
+                            show = false;
+                        }
+                        
+                        if (!isCenter && !showHealth) {
+                            show = false;
+                        }
+                        
+                        // 應用縣市篩選
+                        if (selectedCity && city !== selectedCity) {
+                            show = false;
+                        }
+                        
+                        row.style.display = show ? '' : 'none';
+                    });
+                });
+            }
+            
+            // 添加事件監聽器
+            filterDesignated.addEventListener('change', applyFilters);
+            filterCenter.addEventListener('change', applyFilters);
+            filterHealth.addEventListener('change', applyFilters);
+            filterCity.addEventListener('change', applyFilters);
+        }
+        
+        // 填充縣市篩選下拉選單
+        function populateCityFilter(data) {
+            const filterCity = document.getElementById('filter-city');
+            const cities = new Set();
+            
+            // 收集所有縣市
+            function collectCities(items) {
+                if (!items) return;
+                items.forEach(item => {
+                    if (item.city) {
+                        cities.add(item.city);
+                    }
+                });
+            }
+            
+            // 收集112年數據中的縣市
+            if (data['112']) {
+                collectCities(data['112'].center);
+                collectCities(data['112'].health);
+            }
+            
+            // 收集113年數據中的縣市
+            if (data['113']) {
+                collectCities(data['113'].center);
+                collectCities(data['113'].health);
+            }
+            
+            // 清空選項
+            filterCity.innerHTML = '<option value="">所有縣市</option>';
+            
+            // 添加縣市選項
+            [...cities].sort().forEach(city => {
+                const option = document.createElement('option');
+                option.value = city;
+                option.textContent = city;
+                filterCity.appendChild(option);
+            });
+        }
+        
+        // 檢查缺失的指定區域
+        function checkMissingDesignatedAreas(data) {
+            // 硬編碼的指定區域列表 (從server.js中的determineIfDesignated函數獲取)
+            const designatedAreas = [
+                // 台北市的部分區域
+                '臺北市_大安區', '臺北市_信義區', '臺北市_中正區',
+                '台北市_大安區', '台北市_信義區', '台北市_中正區',
+                
+                // 新北市的部分區域
+                '新北市_板橋區', '新北市_中和區', '新北市_三重區',
+                
+                // 台中市的部分區域
+                '臺中市_西屯區', '臺中市_北區', '臺中市_南區',
+                '台中市_西屯區', '台中市_北區', '台中市_南區',
+                
+                // 高雄市的部分區域
+                '高雄市_前鎮區', '高雄市_鳳山區', '高雄市_三民區'
+            ];
+            
+            // 建立一個查詢用的對象
+            const areaStatus = {};
+            designatedAreas.forEach(area => {
+                const [city, district] = area.split('_');
+                areaStatus[area] = {
+                    city: city,
+                    district: district,
+                    in112: false,
+                    in113: false
+                };
+            });
+            
+            // 檢查數據中是否存在這些區域
+            function checkAreas(items, year) {
+                if (!items) return;
+                items.forEach(item => {
+                    const key = `${item.city}_${item.district}`;
+                    if (areaStatus[key]) {
+                        areaStatus[key][`in${year}`] = true;
+                    }
+                });
+            }
+            
+            // 檢查112年數據
+            if (data['112']) {
+                checkAreas(data['112'].center, '112');
+                checkAreas(data['112'].health, '112');
+            }
+            
+            // 檢查113年數據
+            if (data['113']) {
+                checkAreas(data['113'].center, '113');
+                checkAreas(data['113'].health, '113');
+            }
+            
+            // 填充缺失區域表格
+            const tableBody = document.getElementById('missing-body');
+            tableBody.innerHTML = '';
+            
+            // 只顯示至少有一年數據缺失的區域
+            const missingAreas = Object.values(areaStatus).filter(area => 
+                !area.in112 || !area.in113
+            );
+            
+            if (missingAreas.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="success">所有指定區域都已包含在數據中</td></tr>';
+                return;
+            }
+            
+            missingAreas.forEach(area => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${area.city}</td>
+                    <td>${area.district}</td>
+                    <td class="${area.in112 ? 'success' : 'error'}">${area.in112 ? '是' : '否'}</td>
+                    <td class="${area.in113 ? 'success' : 'error'}">${area.in113 ? '是' : '否'}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html> 

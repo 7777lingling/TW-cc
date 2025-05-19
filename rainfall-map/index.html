@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣早期療育資訊地圖</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <!-- Leaflet.locate CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+    
+    <!-- Leaflet.search CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-search@3.0.2/dist/leaflet-search.min.css" />
+    
+    <style>
+        #map {
+            height: 100vh;
+            width: 70%;
+            float: left;
+        }
+        #sidebar {
+            height: 100vh;
+            width: 30%;
+            float: right;
+            padding: 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .year-toggle {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .year-toggle button {
+            margin: 0 5px;
+        }
+        .active-year {
+            background-color: #2196F3;
+        }
+        .marker-cluster-small {
+            background-color: rgba(181, 226, 140, 0.6);
+        }
+        .marker-cluster-small div {
+            background-color: rgba(110, 204, 57, 0.6);
+        }
+        .marker-cluster-medium {
+            background-color: rgba(241, 211, 87, 0.6);
+        }
+        .marker-cluster-medium div {
+            background-color: rgba(240, 194, 12, 0.6);
+        }
+        .marker-cluster-large {
+            background-color: rgba(253, 156, 115, 0.6);
+        }
+        .marker-cluster-large div {
+            background-color: rgba(241, 128, 23, 0.6);
+        }
+        .marker-cluster {
+            background-clip: padding-box;
+            border-radius: 20px;
+        }
+        .marker-cluster div {
+            width: 30px;
+            height: 30px;
+            margin-left: 5px;
+            margin-top: 5px;
+            text-align: center;
+            border-radius: 15px;
+            font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+        }
+        .marker-cluster span {
+            line-height: 30px;
+        }
+        .leaflet-popup-content {
+            min-width: 200px;
+        }
+        #error-log {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #ffeeee;
+            border: 1px solid #ffcccc;
+            border-radius: 5px;
+            display: none;
+        }
+        
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="sidebar">
+        <h2>台灣早期療育資訊地圖</h2>
+        <div class="year-toggle">
+            <button id="btn-112" class="active-year">112年</button>
+            <button id="btn-113">113年</button>
+        </div>
+        <div>
+            <h3>說明</h3>
+            <p>本地圖顯示台灣各區域早期療育資訊，包含目標場數、完成場數、評估數及確診數等數據。</p>
+            <p>點擊標記可查看詳細資訊。可使用右上角搜尋功能尋找特定區域。</p>
+            <h4>圖例說明：</h4>
+            <ul style="list-style: none; padding-left: 0;">
+                <li>🔴 指定地區</li>
+                <li>🔵 自選地區</li>
+            </ul>
+        </div>
+        <div>
+            <h3>數據統計</h3>
+            <div id="stats"></div>
+        </div>
+        <div id="error-log"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <!-- Leaflet.markercluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    
+    <!-- Leaflet.locate JS -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+    
+    <!-- Leaflet.search JS -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-search@3.0.2/dist/leaflet-search.min.js"></script>
+    
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- 處理數據腳本 -->
+    <script src="./excelProcessor.js"></script>
+
+    <script>
+        
+        // 初始化地圖
+        var map = L.map('map', {
+            center: [23.5, 121.0], // 台灣中心
+            zoom: 8,
+            minZoom: 7,
+            maxZoom: 18
+        });
+        
+        // 添加底圖
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // 添加定位控制
+        L.control.locate({
+            position: 'topright',
+            strings: {
+                title: "顯示我的位置"
+            },
+            locateOptions: {
+                enableHighAccuracy: true
+            }
+        }).addTo(map);
+        
+        // 初始化標記群組
+        var markers = L.markerClusterGroup();
+        
+        
+        // 當前年度
+        var currentYear = '112';
+        
+        // 顯示錯誤日誌
+        function showError(message) {
+            const errorLogElement = document.getElementById('error-log');
+            errorLogElement.style.display = 'block';
+            errorLogElement.innerHTML = `<h3>錯誤信息</h3><p>${message}</p>`;
+            console.error(message);
+        }
+
+        // 更新標記和統計信息
+        function updateMarkers(data) {
+            try {
+                console.log('開始更新標記，當前年度:', currentYear);
+                
+                // 保存數據以供年份切換使用
+                window.lastLoadedData = data;
+                
+                // 清除現有標記
+                markers.clearLayers();
+                
+                // 獲取當前年度數據
+                const yearData = data[currentYear] || { center: [], health: [] };
+                const allData = [...(yearData.center || []), ...(yearData.health || [])];
+                
+                // 處理所有數據
+                allData.forEach((item) => {
+                    const marker = L.marker([item.lat, item.lng], {
+                        icon: L.icon({
+                            iconUrl: item.isDesignated ? 
+                                'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png' : 
+                                'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        })
+                    });
+                    
+                    marker.bindPopup(`
+                        <h3>${item.city} ${item.district}</h3>
+                        <p><strong>縣市別:</strong> ${item.city}</p>
+                        <p><strong>區域別:</strong> ${item.district}</p>
+                        <p><strong>指定、自選地區:</strong> ${item.isDesignated ? '指定' : '自選'}</p>
+                        <p><strong>類型:</strong> ${item.type}</p>
+                        <p><strong>目標場數:</strong> ${item.targetCount}</p>
+                        <p><strong>完成場數:</strong> ${item.completedCount}</p>
+                        <p><strong>評估數:</strong> ${item.evaluationCount}</p>
+                        <p><strong>確診及疑似遲緩數:</strong> ${item.diagnosedCount}</p>
+                    `);
+                    
+                    markers.addLayer(marker);
+                });
+                
+                // 添加標記群組到地圖
+                map.addLayer(markers);
+                
+                // 更新統計信息
+                updateStats(data);
+                
+            } catch (error) {
+                console.error('更新標記時出錯:', error);
+                showError(`更新標記時出錯: ${error.message}`);
+            }
+        }
+        
+        // 更新統計信息
+        function updateStats(data) {
+            try {
+                const yearData = data[currentYear] || { center: [], health: [] };
+                const allData = [...(yearData.center || []), ...(yearData.health || [])];
+                
+                // 初始化統計數據
+                const stats = {
+                    designated: {
+                        count: 0,
+                        target: 0,
+                        complete: 0,
+                        eval: 0,
+                        confirmed: 0
+                    },
+                    optional: {
+                        count: 0,
+                        target: 0,
+                        complete: 0,
+                        eval: 0,
+                        confirmed: 0
+                    }
+                };
+                
+                // 計算統計數據
+                allData.forEach(item => {
+                    const category = item.isDesignated ? 'designated' : 'optional';
+                    stats[category].count++;
+                    stats[category].target += item.targetCount || 0;
+                    stats[category].complete += item.completedCount || 0;
+                    stats[category].eval += item.evaluationCount || 0;
+                    stats[category].confirmed += item.diagnosedCount || 0;
+                });
+                
+                // 更新統計顯示
+                document.getElementById('stats').innerHTML = `
+                    <h4>資料統計總覽</h4>
+                    <p>資料總筆數：${allData.length}</p>
+                    
+                    <h4>指定地區統計</h4>
+                    <p>地區數量：${stats.designated.count}</p>
+                    <p>目標場數：${stats.designated.target}</p>
+                    <p>完成場數：${stats.designated.complete}</p>
+                    <p>評估數：${stats.designated.eval}</p>
+                    <p>確診及疑似遲緩數：${stats.designated.confirmed}</p>
+                    
+                    <h4>自選地區統計</h4>
+                    <p>地區數量：${stats.optional.count}</p>
+                    <p>目標場數：${stats.optional.target}</p>
+                    <p>完成場數：${stats.optional.complete}</p>
+                    <p>評估數：${stats.optional.eval}</p>
+                    <p>確診及疑似遲緩數：${stats.optional.confirmed}</p>
+
+                    <h4>總計</h4>
+                    <p>總目標場數：${stats.designated.target + stats.optional.target}</p>
+                    <p>總完成場數：${stats.designated.complete + stats.optional.complete}</p>
+                `;
+            } catch (error) {
+                console.error('更新統計信息時出錯:', error);
+                showError(`更新統計信息時出錯: ${error.message}`);
+            }
+        }
+        
+        // 初始化應用
+        async function initApp() {
+            try {
+                console.log('應用初始化中...');
+                
+                // 自動加載Excel數據
+                try {
+                    const data = await initializeData();
+                    updateMarkers(data);
+                } catch (error) {
+                    console.error('加載Excel數據時出錯:', error);
+                    showError(`加載Excel數據時出錯: ${error.message}`);
+                }
+                
+                // 年份切換按鈕事件
+                document.getElementById('btn-112').addEventListener('click', function() {
+                    currentYear = '112';
+                    this.classList.add('active-year');
+                    document.getElementById('btn-113').classList.remove('active-year');
+                    updateMarkers(window.lastLoadedData);
+                });
+                
+                document.getElementById('btn-113').addEventListener('click', function() {
+                    currentYear = '113';
+                    this.classList.add('active-year');
+                    document.getElementById('btn-112').classList.remove('active-year');
+                    updateMarkers(window.lastLoadedData);
+                });
+                
+            } catch (error) {
+                console.error('初始化應用失敗:', error);
+                showError(`初始化應用失敗: ${error.message}`);
+            }
+        }
+        
+        // 初始化頁面
+        initApp();
+    </script>
+</body>
+</html>

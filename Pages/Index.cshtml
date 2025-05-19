@@ -1,0 +1,65 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "早期療育資訊地圖";
+}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<link rel="stylesheet" href="~/css/site.css" />
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- 左侧地图区域 (70%) -->
+        <div class="col-md-8">
+            <div id="map" style="height: 90vh;"></div>
+        </div>
+
+        <!-- 右侧控制面板 (30%) -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>篩選條件</h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-group mb-3">
+                        <label for="yearSelect">年份</label>
+                        <select class="form-control" id="yearSelect"></select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="typeSelect">機構類型</label>
+                        <select class="form-control" id="typeSelect"></select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="regionSelect">地區類型</label>
+                        <select class="form-control" id="regionSelect"></select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5>數據列表</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="dataTable">
+                            <thead>
+                                <tr>
+                                    <th>地區</th>
+                                    <th>類型</th>
+                                    <th>目標</th>
+                                    <th>完成</th>
+                                    <th>比率</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="~/js/earlyIntervention.js"></script>
