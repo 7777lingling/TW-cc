@@ -25,4 +25,18 @@ node_modules/
 ~$*.xlsx
 
 # Cache files
-geocode_cache.json 
+geocode_cache.json
+
+# Visual Studio files
+*.sln
+*.csproj
+*.csproj.user
+Properties/
+appsettings*.json
+
+# ASP.NET Core
+wwwroot/lib/
+Controllers/
+Models/
+Pages/
+Program.cs 
